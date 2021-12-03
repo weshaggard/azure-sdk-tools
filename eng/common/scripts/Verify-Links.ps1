@@ -66,6 +66,7 @@ param (
   [string] $branchReplacementName = "",
   [bool] $checkLinkGuidance = $false,
   [string] $userAgent,
+  [object] $requestHeaders = @{ },
   [string] $inputCacheFile,
   [string] $outputCacheFile
 )
@@ -78,8 +79,9 @@ if (!$userAgent) {
   $userAgent = "Chrome/87.0.4280.88"
 }
 function NormalizeUrl([string]$url){
-  if (Test-Path $url) {
-    $url = "file://" + (Resolve-Path $url).ToString();
+  if (Test-Path -LiteralPath $url) {
+    $url = "file://" + (Resolve-Path -LiteralPath $url).ToString();
+    $url = $url -replace "%", "%25"
   }
 
   Write-Verbose "The url to check against: $url."
@@ -210,7 +212,7 @@ function CheckLink ([System.Uri]$linkUri, $allowRetry=$true)
   Write-Verbose "Checking link $linkUri..."
 
   if ($linkUri.IsFile) {
-    if (!(Test-Path $linkUri.LocalPath)) {
+    if (!(Test-Path -LiteralPath $linkUri.LocalPath)) {
       LogWarning "Link to file does not exist $($linkUri.LocalPath)"
       $linkValid = $false
     }
@@ -220,14 +222,14 @@ function CheckLink ([System.Uri]$linkUri, $allowRetry=$true)
       $headRequestSucceeded = $true
       try {
         # Attempt HEAD request first
-        $response = Invoke-WebRequest -Uri $linkUri -Method HEAD -UserAgent $userAgent
+        $response = Invoke-WebRequest -Uri $linkUri -Method HEAD -UserAgent $userAgent -Headers $requestHeaders
       }
       catch {
         $headRequestSucceeded = $false
       }
       if (!$headRequestSucceeded) {
         # Attempt a GET request if the HEAD request failed.
-        $response = Invoke-WebRequest -Uri $linkUri -Method GET -UserAgent $userAgent
+        $response = Invoke-WebRequest -Uri $linkUri -Method GET -UserAgent $userAgent -Headers $requestHeaders
       }
       $statusCode = $response.StatusCode
       if ($statusCode -ne 200) {
@@ -328,7 +330,7 @@ function GetLinks([System.Uri]$pageUri)
 {
   if ($pageUri.Scheme.StartsWith("http")) {
     try {
-      $response = Invoke-WebRequest -Uri $pageUri -UserAgent $userAgent
+      $response = Invoke-WebRequest -Uri $pageUri -UserAgent $userAgent -Headers $requestHeaders
       $content = $response.Content
 
       if ($pageUri.ToString().EndsWith(".md")) {
@@ -340,7 +342,7 @@ function GetLinks([System.Uri]$pageUri)
       Write-Error "Invalid page [$statusCode] $pageUri"
     }
   }
-  elseif ($pageUri.IsFile -and (Test-Path $pageUri.LocalPath)) {
+  elseif ($pageUri.IsFile -and (Test-Path -LiteralPath $pageUri.LocalPath)) {
     $file = $pageUri.LocalPath
     if ($file.EndsWith(".md")) {
       $content = (ConvertFrom-MarkDown $file).html
