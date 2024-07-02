@@ -1,0 +1,13 @@
+# Node.js with React
+# Build a Node.js project that uses React.
+# Add steps that analyze code, save build artifacts, deploy, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/javascript
+
+trigger:
+- main
+
+pool:
+  vmImage: macos-latest
+
+steps:
+ - template: eng/common/testproxy/test-proxy-tool.yml
