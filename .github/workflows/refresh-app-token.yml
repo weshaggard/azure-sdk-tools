@@ -34,4 +34,5 @@ jobs:
       uses: azure/cli@v1
       with:
         inlineScript: |
-          az keyvault secret set --vault-name azure-sdk-github-secrets --name azure-sdk-automation-access-token --value ${{ steps.generate_token.outputs.token }}
+          expires_at=$(date -u -d "1 hour" '+%Y-%m-%dT%H:%M:%SZ')
+          az keyvault secret set --vault-name azure-sdk-github-secrets --name azure-sdk-automation-access-token --value ${{ steps.generate_token.outputs.token }} --expires "$expires_at"
