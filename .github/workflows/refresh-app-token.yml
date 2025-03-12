@@ -23,7 +23,7 @@ jobs:
 
     - name: Generate GitHub App Installation Token
       id: generate_token
-      uses: actions/github-app-token@v1
+      uses: actions/create-github-app-token@v1
       with:
         app-id: Iv23lio5GQbTbrf7cJTJ
         private-key: ${{ secrets.AZURE_SDK_AUTOMATION_PRIVATE_KEY }}
