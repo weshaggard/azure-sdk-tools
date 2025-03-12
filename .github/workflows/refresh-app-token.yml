@@ -28,6 +28,7 @@ jobs:
         app-id: Iv23lio5GQbTbrf7cJTJ
         private-key: ${{ secrets.AZURE_SDK_AUTOMATION_PRIVATE_KEY }}
         owner: Azure
+        skip-token-revoke: true
 
     - name: Set token in Azure Key Vault
       uses: azure/cli@v1
