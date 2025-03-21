@@ -46,7 +46,11 @@ jobs:
         inlineScript: |
           for i in {1..5} 
           do 
-            az keyvault secret purge --vault-name $KEY_VAULT_NAME --name $SECRET_NAME && break || sleep i
+            az keyvault secret purge --vault-name $KEY_VAULT_NAME --name $SECRET_NAME
+            if [[ $i -lt 5 ]]; then
+              echo "Failed to purge $SECRET_NAME from $KEY_VAULT_NAME... Retrying after sleeping $i"
+              sleep $i
+            fi
           done
 
     - name: Set token secret
