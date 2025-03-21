@@ -48,7 +48,7 @@ jobs:
           while ! az keyvault secret purge --vault-name $KEY_VAULT_NAME --name $SECRET_NAME; do
             if [[ $i -ge 5 ]]; then
               echo "Failed to purge $SECRET_NAME from $KEY_VAULT_NAME"
-              exit 1
+              break
             fi
             echo "Failed to purge $SECRET_NAME from $KEY_VAULT_NAME... Retrying after sleeping $i"
             sleep $i
