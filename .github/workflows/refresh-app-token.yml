@@ -38,21 +38,22 @@ jobs:
       uses: azure/cli@v1
       with:
         inlineScript: |
+          # Don't fail this step if purging fails as we want to continue to try and set
           az keyvault secret delete --vault-name $KEY_VAULT_NAME --name $SECRET_NAME || true
 
     - name: Purge existing secret
       uses: azure/cli@v1
       with:
         inlineScript: |
-          i=1
-          while ! az keyvault secret purge --vault-name $KEY_VAULT_NAME --name $SECRET_NAME; do
-            if [[ $i -ge 5 ]]; then
+          for i in {1..5}; do
+            az keyvault secret purge --vault-name $KEY_VAULT_NAME --name $SECRET_NAME
+            if [[ $? -eq 0 ]]; then break; fi
+            if [[ $i -ge 5 ]]; then 
               echo "Failed to purge $SECRET_NAME from $KEY_VAULT_NAME"
-              break
+              exit 0 # Don't fail this step if purging fails as we want to continue to try and set
             fi
             echo "Failed to purge $SECRET_NAME from $KEY_VAULT_NAME... Retrying after sleeping $i"
             sleep $i
-            ((i++))
           done
 
     - name: Set token secret
@@ -60,4 +61,13 @@ jobs:
       with:
         inlineScript: |
           expires_at=$(date -u -d "1 hour" '+%Y-%m-%dT%H:%M:%SZ')
-          az keyvault secret set --vault-name $KEY_VAULT_NAME --name $SECRET_NAME --value ${{ steps.generate_token.outputs.token }} --expires "$expires_at"
+          for i in {1..5}; do
+            az keyvault secret set --vault-name $KEY_VAULT_NAME --name $SECRET_NAME --value ${{ steps.generate_token.outputs.token }} --expires "$expires_at"
+            if [[ $? -eq 0 ]]; then break; fi
+            if [[ $i -ge 5 ]]; then
+              echo "Failed to set $SECRET_NAME from $KEY_VAULT_NAME"
+              exit $?
+            fi
+            echo "Failed to set $SECRET_NAME from $KEY_VAULT_NAME... Retrying after sleeping $i"
+            sleep $i
+          done
