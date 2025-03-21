@@ -35,6 +35,6 @@ jobs:
       with:
         inlineScript: |
           az keyvault secret delete --vault-name azure-sdk-github-secrets --name azure-sdk-automation-access-token || true
-          until az keyvault secret purge  --vault-name azure-sdk-github-secrets --name azure-sdk-automation-access-token; do "Retrying.."; sleep 1; done
+          az keyvault secret purge  --vault-name azure-sdk-github-secrets --name azure-sdk-automation-access-token || true
           expires_at=$(date -u -d "1 hour" '+%Y-%m-%dT%H:%M:%SZ')
           az keyvault secret set --vault-name azure-sdk-github-secrets --name azure-sdk-automation-access-token --value ${{ steps.generate_token.outputs.token }} --expires "$expires_at"
