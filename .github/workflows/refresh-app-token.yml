@@ -46,7 +46,7 @@ jobs:
       with:
         inlineScript: |
           for i in {1..5}; do
-            az keyvault secret purge --vault-name $KEY_VAULT_NAME --name $SECRET_NAME
+            az keyvault secret purge --vault-name $KEY_VAULT_NAME --name $SECRET_NAME && true
             if [[ $? -eq 0 ]]; then break; fi
             if [[ $i -ge 5 ]]; then 
               echo "Failed to purge $SECRET_NAME from $KEY_VAULT_NAME"
@@ -62,7 +62,7 @@ jobs:
         inlineScript: |
           expires_at=$(date -u -d "1 hour" '+%Y-%m-%dT%H:%M:%SZ')
           for i in {1..5}; do
-            az keyvault secret set --vault-name $KEY_VAULT_NAME --name $SECRET_NAME --value ${{ steps.generate_token.outputs.token }} --expires "$expires_at"
+            az keyvault secret set --vault-name $KEY_VAULT_NAME --name $SECRET_NAME --value ${{ steps.generate_token.outputs.token }} --expires "$expires_at" && true
             if [[ $? -eq 0 ]]; then break; fi
             if [[ $i -ge 5 ]]; then
               echo "Failed to set $SECRET_NAME from $KEY_VAULT_NAME"
