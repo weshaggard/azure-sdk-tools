@@ -8,6 +8,10 @@ on:
 permissions:
   id-token: write
 
+env:
+  KEY_VAULT_NAME: azure-sdk-github-secrets
+  SECRET_NAME: azure-sdk-automation-access-token
+
 jobs:
   refresh-token:
     runs-on: ubuntu-latest
@@ -30,11 +34,24 @@ jobs:
         owner: Azure
         skip-token-revoke: true
 
-    - name: Set token in Azure Key Vault
+    - name: Delete existing secret
       uses: azure/cli@v1
       with:
         inlineScript: |
-          az keyvault secret delete --vault-name azure-sdk-github-secrets --name azure-sdk-automation-access-token || true
-          az keyvault secret purge  --vault-name azure-sdk-github-secrets --name azure-sdk-automation-access-token || true
+          az keyvault secret delete --vault-name $KEY_VAULT_NAME --name $SECRET_NAME || true
+
+    - name: Purge existing secret
+      uses: azure/cli@v1
+      with:
+        inlineScript: |
+          for i in {1..5} 
+          do 
+            az keyvault secret purge --vault-name $KEY_VAULT_NAME --name $SECRET_NAME && break || sleep i
+          done
+
+    - name: Set token secret
+      uses: azure/cli@v1
+      with:
+        inlineScript: |
           expires_at=$(date -u -d "1 hour" '+%Y-%m-%dT%H:%M:%SZ')
-          az keyvault secret set --vault-name azure-sdk-github-secrets --name azure-sdk-automation-access-token --value ${{ steps.generate_token.outputs.token }} --expires "$expires_at"
+          az keyvault secret set --vault-name $KEY_VAULT_NAME --name $SECRET_NAME --value ${{ steps.generate_token.outputs.token }} --expires "$expires_at"
