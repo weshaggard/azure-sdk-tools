@@ -44,13 +44,15 @@ jobs:
       uses: azure/cli@v1
       with:
         inlineScript: |
-          for i in {1..5} 
-          do 
-            az keyvault secret purge --vault-name $KEY_VAULT_NAME --name $SECRET_NAME
-            if [[ $i -lt 5 ]]; then
-              echo "Failed to purge $SECRET_NAME from $KEY_VAULT_NAME... Retrying after sleeping $i"
-              sleep $i
+          i=1
+          while ! az keyvault secret purge --vault-name $KEY_VAULT_NAME --name $SECRET_NAME; do
+            if [[ $i -ge 5 ]]; then
+              echo "Failed to purge $SECRET_NAME from $KEY_VAULT_NAME"
+              exit 1
             fi
+            echo "Failed to purge $SECRET_NAME from $KEY_VAULT_NAME... Retrying after sleeping $i"
+            sleep $i
+            ((i++))
           done
 
     - name: Set token secret
