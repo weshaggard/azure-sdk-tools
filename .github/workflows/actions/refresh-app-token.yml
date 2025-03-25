@@ -35,7 +35,7 @@ jobs:
         skip-token-revoke: true
 
     # Set the token in the keyvault
-    - uses: ./delete-and-set-key-vault-secret-value.yml
+    - uses: ./.github/workflows/actions/delete-and-set-key-vault-secret-value.yml
       with:
         key-vault-name: ${{ inputs.key-vault-name }}
         secret-name: ${{ inputs.secret-name }}-${{ inputs.owner }}
@@ -43,7 +43,7 @@ jobs:
 
     # Set the token in the keyvault with with a backup suffix to allow for folks to retrieve the token
     # without error if we happen to be in the process of deleting the main key vault secret.
-    - uses: ./delete-and-set-key-vault-secret-value.yml
+    - uses: ./.github/workflows/actions/delete-and-set-key-vault-secret-value.yml
       with:
         key-vault-name: ${{ inputs.key-vault-name }}
         secret-name: ${{ inputs.secret-name }}-${{ inputs.owner }}-backup
