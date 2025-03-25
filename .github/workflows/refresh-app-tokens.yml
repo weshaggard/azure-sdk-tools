@@ -1,0 +1,42 @@
+name: Refresh App Tokens
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+
+jobs:
+  refresh-tokens:
+    runs-on: ubuntu-latest
+    environment: azure-sdk-automation
+
+    steps:
+    - name: 'Az CLI login'
+      uses: azure/login@v2
+      with:
+        client-id: 45a289d0-4d69-4ac9-948b-1a0d9cfb08b3
+        tenant-id: 72f988bf-86f1-41af-91ab-2d7cd011db47
+        subscription-id: a18897a6-7e44-457d-9260-f2854c0aca42
+
+    - uses: ./actions/refresh-app-token.yml
+      with:
+        owner: Azure
+        key-vault-name: $KEY_VAULT_NAME
+
+    - uses: ./actions/refresh-app-token.yml
+      with:
+        owner: azure-sdk
+        key-vault-name: $KEY_VAULT_NAME
+
+    - uses: ./actions/refresh-app-token.yml
+      with:
+        owner: microsoft
+        key-vault-name: $KEY_VAULT_NAME
+
+    # - uses: ./actions/refresh-app-token.yml
+    #   with:
+    #     owner: MicrosoftDocs
+
