@@ -21,22 +21,22 @@ jobs:
         tenant-id: 72f988bf-86f1-41af-91ab-2d7cd011db47
         subscription-id: a18897a6-7e44-457d-9260-f2854c0aca42
 
-    - uses: ./actions/refresh-app-token.yml
+    - uses: /.github/workflows/actions/actions/refresh-app-token.yml
       with:
         owner: Azure
         key-vault-name: $KEY_VAULT_NAME
 
-    - uses: ./actions/refresh-app-token.yml
+    - uses: /.github/workflows/actions/actions/refresh-app-token.yml
       with:
         owner: azure-sdk
         key-vault-name: $KEY_VAULT_NAME
 
-    - uses: ./actions/refresh-app-token.yml
+    - uses: /.github/workflows/actions/actions/refresh-app-token.yml
       with:
         owner: microsoft
         key-vault-name: $KEY_VAULT_NAME
 
-    # - uses: ./actions/refresh-app-token.yml
+    # - uses: /.github/workflows/actions/actions/refresh-app-token.yml
     #   with:
     #     owner: MicrosoftDocs
 
