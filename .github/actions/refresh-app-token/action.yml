@@ -28,18 +28,18 @@ runs:
       owner: ${{ inputs.owner }}
       skip-token-revoke: true
 
+  - name: Install Azure SDK dependencies
+    run: |
+      npm install @azure/identity @azure/keyvault-secrets
+
   # Set the token in the key vault with a '-backup' suffix to allow for folks to retrieve the token
   # without error if we happen to be in the process of deleting the main key vault secret. Do this before
   # updating the main secret to help ensure consumers can get the main or the backup without a race condition.
-  - uses: ./.github/actions/delete-and-set-key-vault-secret
-    with:
-      key-vault-name: ${{ inputs.key-vault-name }}
-      secret-name: ${{ inputs.secret-name }}-${{ inputs.owner }}-backup
-      secret-value: ${{ steps.generate_token.outputs.token }}
- 
+  - name: Delete and Set Key Vault Secret
+    run: |
+      node ../src/delete-and-set-key-vault-secret.js "${{ inputs.key-vault-name }}" "${{ inputs.secret-name }}-${{ inputs.owner }}-backup" "${{ steps.generate_token.outputs.token }}"
+
   # Set the token in the key vault under the main secret name
-  - uses: ./.github/actions/delete-and-set-key-vault-secret
-    with:
-      key-vault-name: ${{ inputs.key-vault-name }}
-      secret-name: ${{ inputs.secret-name }}-${{ inputs.owner }}
-      secret-value: ${{ steps.generate_token.outputs.token }}
+  - name: Delete and Set Key Vault Secret
+    run: |
+      node ../src/delete-and-set-key-vault-secret.js "${{ inputs.key-vault-name }}" "${{ inputs.secret-name }}-${{ inputs.owner }}" "${{ steps.generate_token.outputs.token }}"
