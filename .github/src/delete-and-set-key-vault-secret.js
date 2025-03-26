@@ -1,9 +1,8 @@
 const { SecretClient } = require("@azure/keyvault-secrets");
-const { DefaultAzureCredential } = require("@azure/identity");
+const { AzureCliCredential } = require("@azure/identity");
 
 async function deletePurgeAndSetSecretWithRetry(vaultName, secretName, secretValue) {
     const credential = new AzureCliCredential();
-    const url = `https://${vaultName}.vault.azure.net`;
 
     const clientOptions = {
         retryOptions: {
@@ -13,7 +12,7 @@ async function deletePurgeAndSetSecretWithRetry(vaultName, secretName, secretVal
         }
     };
 
-    const client = new SecretClient(url, credential, clientOptions);
+    const client = new SecretClient(`https://${vaultName}.vault.azure.net`, credential, clientOptions);
 
     try {
         console.log(`Deleting secret: ${secretName}`);
