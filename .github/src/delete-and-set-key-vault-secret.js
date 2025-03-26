@@ -2,12 +2,7 @@ const { SecretClient } = require("@azure/keyvault-secrets");
 const { AzureCliCredential } = require("@azure/identity");
 
 async function deletePurgeAndSetSecretWithRetry(vaultName, secretName, secretValue) {
-    const client = new SecretClient(`https://${vaultName}.vault.azure.net`, new AzureCliCredential(), {
-        retryOptions: {
-            maxRetries: 5,
-            retryOnStatusCodes: [404]
-        }
-    });
+    const client = new SecretClient(`https://${vaultName}.vault.azure.net`, new AzureCliCredential());
 
     try {
         console.log(`Deleting secret: ${secretName}`);
@@ -15,6 +10,7 @@ async function deletePurgeAndSetSecretWithRetry(vaultName, secretName, secretVal
             await client.beginDeleteSecret(secretName);
         } catch (err) {
             if (err.statusCode === 404) {
+                // Ignore 404 error if the secret does not exist
                 console.log(`Secret ${secretName} not found, skipping delete.`);
             } else {
                 throw err;
@@ -22,15 +18,29 @@ async function deletePurgeAndSetSecretWithRetry(vaultName, secretName, secretVal
         }
 
         console.log(`Purging secret: ${secretName}`);
-        await client.purgeDeletedSecret(secretName);
+        retryOn404(() => client.purgeDeletedSecret(secretName));
 
         console.log(`Setting secret: ${secretName}`);
-        await client.setSecret(secretName, secretValue);
+        retryOn404(() => client.setSecret(secretName, secretValue));
 
         console.log(`Secret ${secretName} set successfully.`);
     } catch (err) {
         console.error("An error occurred:", err.message, "Status code:", err.statusCode || "N/A");
         throw err;
+    }
+}
+
+async function retryOn404(fn, retries = 3, delay = 1000) {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+            return await fn();
+        } catch (err) {
+            if (err.statusCode !== 404 || attempt === retries) {
+                throw err;
+            }
+            console.log(`Attempt ${attempt} failed with 404. Retrying in ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
     }
 }
 
