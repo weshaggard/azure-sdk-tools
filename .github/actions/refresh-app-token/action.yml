@@ -32,6 +32,7 @@ runs:
     shell: bash
     run: |
       npm install @azure/identity @azure/keyvault-secrets
+    working-directory: .github/src
 
   # Set the token in the key vault with a '-backup' suffix to allow for folks to retrieve the token
   # without error if we happen to be in the process of deleting the main key vault secret. Do this before
@@ -39,10 +40,12 @@ runs:
   - name: Delete and Set Key Vault Secret
     shell: bash
     run: |
-      node ../src/delete-and-set-key-vault-secret.js "${{ inputs.key-vault-name }}" "${{ inputs.secret-name }}-${{ inputs.owner }}-backup" "${{ steps.generate_token.outputs.token }}"
+      node delete-and-set-key-vault-secret.js "${{ inputs.key-vault-name }}" "${{ inputs.secret-name }}-${{ inputs.owner }}-backup" "${{ steps.generate_token.outputs.token }}"
+    working-directory: .github/src
 
   # Set the token in the key vault under the main secret name
   - name: Delete and Set Key Vault Secret
     shell: bash
     run: |
-      node ../src/delete-and-set-key-vault-secret.js "${{ inputs.key-vault-name }}" "${{ inputs.secret-name }}-${{ inputs.owner }}" "${{ steps.generate_token.outputs.token }}"
+      node delete-and-set-key-vault-secret.js "${{ inputs.key-vault-name }}" "${{ inputs.secret-name }}-${{ inputs.owner }}" "${{ steps.generate_token.outputs.token }}"
+    working-directory: .github/src
