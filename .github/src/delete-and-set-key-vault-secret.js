@@ -18,10 +18,10 @@ async function deletePurgeAndSetSecretWithRetry(vaultName, secretName, secretVal
         }
 
         console.log(`Purging secret: ${secretName}`);
-        retryOn404(() => client.purgeDeletedSecret(secretName));
+        await retryOn404(() => client.purgeDeletedSecret(secretName));
 
         console.log(`Setting secret: ${secretName}`);
-        retryOn404(() => client.setSecret(secretName, secretValue));
+        await retryOn404(() => client.setSecret(secretName, secretValue));
 
         console.log(`Secret ${secretName} set successfully.`);
     } catch (err) {
