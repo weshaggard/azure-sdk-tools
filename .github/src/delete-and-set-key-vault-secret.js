@@ -35,7 +35,7 @@ async function retry(fn, retries = 3, delay = 1000) {
         try {
             return await fn();
         } catch (err) {
-            if (err.statusCode !== 404 || err.statusCode !== 409 || attempt === retries) {
+            if (!(err.statusCode == 404 || err.statusCode == 409) || attempt === retries) {
                 throw err;
             }
             console.log(`Attempt ${attempt} failed with ${err.statusCode}. Retrying in ${delay}ms...`);
