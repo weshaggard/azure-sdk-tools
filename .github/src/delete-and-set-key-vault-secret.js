@@ -18,10 +18,10 @@ async function deletePurgeAndSetSecretWithRetry(vaultName, secretName, secretVal
         }
 
         console.log(`Purging secret: ${secretName}`);
-        await retryOn404(() => client.purgeDeletedSecret(secretName));
+        await retry(() => client.purgeDeletedSecret(secretName));
 
         console.log(`Setting secret: ${secretName}`);
-        await retryOn404(() => client.setSecret(secretName, secretValue));
+        await retry(() => client.setSecret(secretName, secretValue));
 
         console.log(`Secret ${secretName} set successfully.`);
     } catch (err) {
@@ -35,10 +35,10 @@ async function retryOn404(fn, retries = 3, delay = 1000) {
         try {
             return await fn();
         } catch (err) {
-            if (err.statusCode !== 404 || attempt === retries) {
+            if (err.statusCode !== 404 || err.statusCode !== 409 || attempt === retries) {
                 throw err;
             }
-            console.log(`Attempt ${attempt} failed with 404. Retrying in ${delay}ms...`);
+            console.log(`Attempt ${attempt} failed with ${err.statusCode}. Retrying in ${delay}ms...`);
             await new Promise(resolve => setTimeout(resolve, delay));
         }
     }
