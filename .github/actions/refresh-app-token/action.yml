@@ -1,0 +1,45 @@
+name: 'Refresh GitHub App Token'
+description: 'Generate a GitHub App installation token and store it in Azure Key Vault'
+
+inputs:
+  key-vault-name:
+    description: 'The name of the Azure Key Vault'
+    default: 'azure-sdk-github-secrets' 
+  secret-name:
+    description: 'The name of the secret in Key Vault'
+    default: 'azure-sdk-automation-access-token'
+  owner:
+    description: 'GitHub organization or user name'
+    required: true
+    default: 'Azure'
+  private-key:
+    description: 'GitHub App private key'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+  - name: Generate GitHub App Installation Token for ${{ inputs.owner }}
+    id: generate_token
+    uses: actions/create-github-app-token@v1
+    with:
+      app-id: Iv23lio5GQbTbrf7cJTJ
+      private-key: ${{ inputs.private-key }}
+      owner: ${{ inputs.owner }}
+      skip-token-revoke: true
+
+  # Set the token in the key vault with a '-backup' suffix to allow for folks to retrieve the token
+  # without error if we happen to be in the process of deleting the main key vault secret. Do this before
+  # updating the main secret to help ensure consumers can get the main or the backup without a race condition.
+  - uses: ./.github/workflows/actions/delete-and-set-key-vault-secret
+    with:
+      key-vault-name: ${{ inputs.key-vault-name }}
+      secret-name: ${{ inputs.secret-name }}-${{ inputs.owner }}-backup
+      secret-value: ${{ steps.generate_token.outputs.token }}
+ 
+  # Set the token in the key vault under the main secret name
+  - uses: ./.github/workflows/actions/delete-and-set-key-vault-secret
+    with:
+      key-vault-name: ${{ inputs.key-vault-name }}
+      secret-name: ${{ inputs.secret-name }}-${{ inputs.owner }}
+      secret-value: ${{ steps.generate_token.outputs.token }}

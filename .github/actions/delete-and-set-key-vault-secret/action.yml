@@ -1,0 +1,51 @@
+name: 'Delete and Set Key Vault Secret'
+description: 'Delete, purge, and set a new value for an Azure Key Vault secret'
+
+inputs:
+  key-vault-name:
+    description: 'The name of the Azure Key Vault'
+    required: true
+  secret-name:
+    description: 'The name of the secret in Key Vault'
+    required: true
+  secret-value:
+    description: 'The value of the secret to set in Key Vault'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Delete existing secret ${{ inputs.secret-name }}
+      shell: bash
+      run: |
+        # Don't fail this step if purging fails as we want to continue to try and set
+        az keyvault secret delete --vault-name ${{ inputs.key-vault-name}} --name ${{ inputs.secret-name }} || true
+
+    - name: Purge existing secret ${{ inputs.secret-name }}
+      shell: bash
+      run: |
+        for i in {1..5}; do
+          az keyvault secret purge --vault-name ${{ inputs.key-vault-name}} --name ${{ inputs.secret-name }} && true
+          if [[ $? -eq 0 ]]; then break; fi
+          if [[ $i -ge 5 ]]; then 
+            echo "Failed to purge ${{ inputs.secret-name }} from ${{ inputs.key-vault-name}}"
+            exit 0 # Don't fail this step if purging fails as we want to continue to try and set
+          fi
+          echo "Failed to purge ${{ inputs.secret-name }} from ${{ inputs.key-vault-name}}... Retrying after sleeping $i"
+          sleep $i
+        done
+
+    - name: Set secret ${{ inputs.secret-name }}
+      shell: bash
+      run: |
+        expires_at=$(date -u -d "1 hour" '+%Y-%m-%dT%H:%M:%SZ')
+        for i in {1..5}; do
+          az keyvault secret set --vault-name ${{ inputs.key-vault-name}} --name ${{ inputs.secret-name }} --value "${{ inputs.secret-value }}" --expires "$expires_at" && true
+          if [[ $? -eq 0 ]]; then break; fi
+          if [[ $i -ge 5 ]]; then
+            echo "Failed to set ${{ inputs.secret-name }} from ${{ inputs.key-vault-name}}"
+            exit $?
+          fi
+          echo "Failed to set ${{ inputs.secret-name }} from ${{ inputs.key-vault-name}}... Retrying after sleeping $i"
+          sleep $i
+        done

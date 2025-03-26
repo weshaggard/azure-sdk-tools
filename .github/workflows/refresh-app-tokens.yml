@@ -21,22 +21,23 @@ jobs:
         tenant-id: 72f988bf-86f1-41af-91ab-2d7cd011db47
         subscription-id: a18897a6-7e44-457d-9260-f2854c0aca42
 
-    - uses: ./.github/workflows/actions/refresh-app-token.yml@main
+    - uses: ./.github/actions/refresh-app-token
       with:
         owner: Azure
-        key-vault-name: $KEY_VAULT_NAME
+        private-key: ${{ secrets.AZURE_SDK_AUTOMATION_PRIVATE_KEY }}
 
-    - uses: ./.github/workflows/actions/refresh-app-token.yml@main
+    - uses: ./.github/actions/refresh-app-token
       with:
         owner: azure-sdk
-        key-vault-name: $KEY_VAULT_NAME
+        private-key: ${{ secrets.AZURE_SDK_AUTOMATION_PRIVATE_KEY }}
 
-    - uses: ./.github/workflows/actions/refresh-app-token.yml@main
+    - uses: ./.github/actions/refresh-app-token
       with:
         owner: microsoft
-        key-vault-name: $KEY_VAULT_NAME
+        private-key: ${{ secrets.AZURE_SDK_AUTOMATION_PRIVATE_KEY }}
 
-    # - uses: ./.github/workflows/actions/refresh-app-token.yml@main
+    # - uses: ./.github/actions/refresh-app-token
     #   with:
     #     owner: MicrosoftDocs
+    #     private-key: ${{ secrets.AZURE_SDK_AUTOMATION_PRIVATE_KEY }}
 
