@@ -28,7 +28,7 @@ async function deletePurgeAndSetSecretWithRetry(vaultName, secretName, secretVal
 
         console.log(`Secret ${secretName} set successfully.`);
     } catch (err) {
-        console.error("An error occurred:", err.message);
+        console.error("An error occurred:", err.message, "Status code:", err.statusCode || "N/A");
         throw err;
     }
 }
