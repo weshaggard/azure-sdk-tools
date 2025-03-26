@@ -9,8 +9,10 @@ async function deletePurgeAndSetSecretWithRetry(vaultName, secretName, secretVal
     });
 
     try {
-        console.log(`Deleting secret: ${secretName}`);
-        await client.beginDeleteSecret(secretName);
+        if (await client.getSecret(secretName)) {
+            console.log(`Deleting secret: ${secretName}`);
+            await client.beginDeleteSecret(secretName);
+        }
 
         console.log(`Purging secret: ${secretName}`);
         await client.purgeDeletedSecret(secretName);
