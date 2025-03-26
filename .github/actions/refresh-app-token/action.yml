@@ -31,14 +31,14 @@ runs:
   # Set the token in the key vault with a '-backup' suffix to allow for folks to retrieve the token
   # without error if we happen to be in the process of deleting the main key vault secret. Do this before
   # updating the main secret to help ensure consumers can get the main or the backup without a race condition.
-  - uses: ./.github/workflows/actions/delete-and-set-key-vault-secret
+  - uses: ./.github/actions/delete-and-set-key-vault-secret
     with:
       key-vault-name: ${{ inputs.key-vault-name }}
       secret-name: ${{ inputs.secret-name }}-${{ inputs.owner }}-backup
       secret-value: ${{ steps.generate_token.outputs.token }}
  
   # Set the token in the key vault under the main secret name
-  - uses: ./.github/workflows/actions/delete-and-set-key-vault-secret
+  - uses: ./.github/actions/delete-and-set-key-vault-secret
     with:
       key-vault-name: ${{ inputs.key-vault-name }}
       secret-name: ${{ inputs.secret-name }}-${{ inputs.owner }}
