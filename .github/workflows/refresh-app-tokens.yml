@@ -15,6 +15,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        sparse: true
+        sparse-checkout: |
+          .github
 
     - name: 'Az CLI login'
       uses: azure/login@v2
