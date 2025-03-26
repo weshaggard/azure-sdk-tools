@@ -30,7 +30,7 @@ async function deletePurgeAndSetSecretWithRetry(vaultName, secretName, secretVal
     }
 }
 
-async function retryOn404(fn, retries = 3, delay = 1000) {
+async function retry(fn, retries = 3, delay = 1000) {
     for (let attempt = 1; attempt <= retries; attempt++) {
         try {
             return await fn();
