@@ -4,7 +4,8 @@ const { AzureCliCredential } = require("@azure/identity");
 async function deletePurgeAndSetSecretWithRetry(vaultName, secretName, secretValue) {
     const client = new SecretClient(`https://${vaultName}.vault.azure.net`, new AzureCliCredential(), {
         retryOptions: {
-            maxRetries: 5
+            maxRetries: 5,
+            retryOnStatusCodes: [404]
         }
     });
 
@@ -42,6 +43,5 @@ if (!vaultName || !secretName || !secretValue) {
 }
 
 deletePurgeAndSetSecretWithRetry(vaultName, secretName, secretValue).catch(err => {
-    console.error("An error occurred:", err.message);
     process.exit(1);
 });
