@@ -47,6 +47,9 @@ public class SdkBuildToolTests
         _mockGitHelper = new Mock<IGitHelper>();
         _mockProcessHelper = new Mock<IProcessHelper>();
         _mockPythonHelper = new Mock<IPythonHelper>();
+        _mockPythonHelper
+            .Setup(x => x.Run(It.IsAny<PythonOptions>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProcessResult { ExitCode = 0 });
         _mockSpecGenSdkConfigHelper = new Mock<ISpecGenSdkConfigHelper>();
         _mockNpxHelper = new Mock<INpxHelper>();
         _mockPowerShellHelper = new Mock<IPowershellHelper>();
@@ -59,7 +62,7 @@ public class SdkBuildToolTests
         // Create temp directory for tests
         _tempDirectory = TempDirectory.Create("SdkBuildToolTests");
         _languageServices = [
-            new PythonLanguageService(_mockProcessHelper.Object, _mockPythonHelper.Object, _mockNpxHelper.Object, _mockGitHelper.Object, languageLogger, _commonValidationHelpers.Object, packageInfoHelper, Mock.Of<IFileHelper>(), _mockSpecGenSdkConfigHelper.Object, Mock.Of<IChangelogHelper>()),
+            new PythonLanguageService(_mockProcessHelper.Object, _mockPythonHelper.Object, _mockNpxHelper.Object, Mock.Of<ICopilotAgentRunner>(), _mockGitHelper.Object, languageLogger, _commonValidationHelpers.Object, packageInfoHelper, Mock.Of<IFileHelper>(), _mockSpecGenSdkConfigHelper.Object, Mock.Of<IChangelogHelper>()),
             new JavaLanguageService(_mockProcessHelper.Object, _mockGitHelper.Object, new Mock<IMavenHelper>().Object, _mockPythonHelper.Object, copilotAgentRunnerMock.Object, languageLogger, _commonValidationHelpers.Object, packageInfoHelper, Mock.Of<IFileHelper>(), _mockSpecGenSdkConfigHelper.Object, Mock.Of<IChangelogHelper>()),
             new JavaScriptLanguageService(_mockProcessHelper.Object, _mockNpxHelper.Object, _mockGitHelper.Object, languageLogger, _commonValidationHelpers.Object, packageInfoHelper, Mock.Of<IFileHelper>(), _mockSpecGenSdkConfigHelper.Object, Mock.Of<IChangelogHelper>()),
             new GoLanguageService(_mockProcessHelper.Object, _mockPowerShellHelper.Object, _mockGitHelper.Object, languageLogger, _commonValidationHelpers.Object, packageInfoHelper, Mock.Of<IFileHelper>(), _mockSpecGenSdkConfigHelper.Object, Mock.Of<IChangelogHelper>()),
@@ -109,6 +112,7 @@ public class SdkBuildToolTests
         // Arrange - create a test directory structure
         var projectDir = Path.Combine(_tempDirectory.DirectoryPath, "sdk", "project");
         Directory.CreateDirectory(projectDir);
+        File.WriteAllText(Path.Combine(projectDir, "pyproject.toml"), "[project]");
 
         // Save the current directory
         var originalDir = Directory.GetCurrentDirectory();
@@ -146,6 +150,7 @@ public class SdkBuildToolTests
         // Arrange
         var pythonProjectPath = Path.Combine(_tempDirectory.DirectoryPath, "test-python-sdk");
         Directory.CreateDirectory(pythonProjectPath);
+        File.WriteAllText(Path.Combine(pythonProjectPath, "pyproject.toml"), "[project]");
 
         // Mock GitHelper to return a Python SDK repo name
         _mockGitHelper
