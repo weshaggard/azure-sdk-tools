@@ -1,3 +1,11 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.IO.Compression;
+using System.Linq;
+using System.Security.Claims;
+using System.Text.Json;
+using System.Threading.Tasks;
 using ApiView;
 using APIView.DIff;
 using APIView.Model;
@@ -13,14 +21,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Configuration;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.IO.Compression;
-using System.Linq;
-using System.Security.Claims;
-using System.Text.Json;
-using System.Threading.Tasks;
 
 namespace APIViewWeb.Managers
 {
@@ -859,6 +859,7 @@ namespace APIViewWeb.Managers
                         file.PackageName = codeFile.PackageName;
                         file.PackageVersion = codeFile.PackageVersion;
                         file.ParserStyle = codeFile.ReviewLines.Count > 0 ? ParserStyle.Tree : ParserStyle.Flat;
+                        file.ContentHash = await _codeFileManager.ComputeAPIContentHashAsync(codeFile);
                         await _reviewsRepository.UpsertReviewAsync(review);
                         await _apiRevisionsRepository.UpsertAPIRevisionAsync(apiRevision);
 
@@ -888,17 +889,49 @@ namespace APIViewWeb.Managers
         /// <param name="revision"></param>
         /// <param name="renderedCodeFile"></param>
         /// <param name="considerPackageVersion"></param>
+        /// <param name="incomingContentHash"></param>
         /// <returns></returns>
-        public async Task<bool> AreAPIRevisionsTheSame(APIRevisionListItemModel revision, RenderedCodeFile renderedCodeFile, bool considerPackageVersion = false)
+        public async Task<bool> AreAPIRevisionsTheSame(APIRevisionListItemModel revision,
+            RenderedCodeFile renderedCodeFile, bool considerPackageVersion = false, string incomingContentHash = null)
         {
-            //This will compare and check if new code file content is same as revision in parameter
-            var lastRevisionFile = await _codeFileRepository.GetCodeFileAsync(revision, false);
-            var result = _codeFileManager.AreAPICodeFilesTheSame(codeFileA: lastRevisionFile, codeFileB: renderedCodeFile);
+            APICodeFileModel revisionFile = revision.Files.SingleOrDefault();
+            string storedHash = revisionFile?.ContentHash;
+            if (storedHash != null)
+            {
+                incomingContentHash ??= await _codeFileManager.ComputeAPIContentHashAsync(renderedCodeFile.CodeFile);
+                bool result = storedHash == incomingContentHash;
+                if (considerPackageVersion)
+                {
+                    return result && revisionFile.PackageVersion == renderedCodeFile.CodeFile.PackageVersion;
+                }
+                return result;
+            }
+
+            // Slow path: download blob for revisions without ContentHash (backward compat).
+            RenderedCodeFile lastRevisionFile;
+            try
+            {
+                lastRevisionFile = await _codeFileRepository.GetCodeFileAsync(revision, false);
+            }
+            catch (Exception ex) when (ex is JsonException or InvalidDataException)
+            {
+                _telemetryClient.TrackTrace(
+                    $"Skipping comparison for revision {revision.Id}: legacy blob format ({ex.GetType().Name})");
+                return false;
+            }
+
+            bool fileResult = _codeFileManager.AreAPICodeFilesTheSame(codeFileA: lastRevisionFile, codeFileB: renderedCodeFile);
+            if (revisionFile != null)
+            {
+                revisionFile.ContentHash = await _codeFileManager.ComputeAPIContentHashAsync(lastRevisionFile.CodeFile);
+                await _apiRevisionsRepository.UpsertAPIRevisionAsync(revision);
+            }
+
             if (considerPackageVersion)
             {
-                return result && lastRevisionFile.CodeFile.PackageVersion == renderedCodeFile.CodeFile.PackageVersion;
+                return fileResult && lastRevisionFile.CodeFile.PackageVersion == renderedCodeFile.CodeFile.PackageVersion;
             }
-            return result;
+            return fileResult;
         }
 
         /// <summary>
@@ -944,6 +977,7 @@ namespace APIViewWeb.Managers
                         {
                             file.ParserStyle = ParserStyle.Tree;
                         }
+                        file.ContentHash = await _codeFileManager.ComputeAPIContentHashAsync(codeFile);
                         await _apiRevisionsRepository.UpsertAPIRevisionAsync(revision);
                         _telemetryClient.TrackTrace($"Successfully Updated {revision.Language} revision with id {revision.Id}");
                     }
@@ -1463,6 +1497,7 @@ namespace APIViewWeb.Managers
                         codeFileDetails.VersionString = languageService.VersionString;
                         codeFileDetails.ParserStyle = ParserStyle.Tree;
                         codeFileDetails.IsConvertedTokenModel = true;
+                        codeFileDetails.ContentHash = await _codeFileManager.ComputeAPIContentHashAsync(codeFile);
                         await _apiRevisionsRepository.UpsertAPIRevisionAsync(revisionModel);
                     }                    
                 }
