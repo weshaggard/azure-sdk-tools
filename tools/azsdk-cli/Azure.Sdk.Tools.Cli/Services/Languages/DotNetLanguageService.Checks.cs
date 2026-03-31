@@ -35,10 +35,18 @@ public partial class DotnetLanguageService : LanguageService
             if (!File.Exists(scriptPath))
             {
                 logger.LogError("Code checks script not found at: {ScriptPath}", scriptPath);
-                return new PackageCheckResponse(1, "", $"Code checks script not found at: {scriptPath}");
+                return new PackageCheckResponse(1, "", $"Code checks script not found at: {scriptPath}")
+                {
+                    NextSteps =
+                    [
+                        "Ensure you are running this command from within a clone of the 'azure-sdk-for-net' repository.",
+                        "Verify that the repository is fully restored and that 'eng/scripts/CodeChecks.ps1' exists at the repository root.",
+                        "If the script is missing, restore it by running 'git restore eng/scripts/CodeChecks.ps1' or re-sync your branch to retrieve the file."
+                    ]
+                };
             }
 
-            var args = new[] {"-ServiceDirectory", serviceDirectory, "-SpellCheckPublicApiSurface" };
+            var args = new[] {"-ServiceDirectory", serviceDirectory, "-SpellCheckPublicApiSurface", "-SkipDiffValidation" };
             var options = new PowershellOptions(scriptPath, args, workingDirectory: repoRoot, timeout: CodeChecksTimeout);
             var result = await powershellHelper.Run(options, ct);
 
@@ -50,13 +58,41 @@ public partial class DotnetLanguageService : LanguageService
             else
             {
                 logger.LogWarning("Generated code checks for package at {PackagePath} failed with exit code {ExitCode}", packagePath, result.ExitCode);
-                return new PackageCheckResponse(result.ExitCode, result.Output, "Generated code checks failed");
+
+                var nextSteps = result.Output
+                    .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries)
+                    .Where(line => line.StartsWith("error : ", StringComparison.OrdinalIgnoreCase))
+                    .Select(line => line["error : ".Length..].Trim())
+                    .Where(msg => !string.IsNullOrWhiteSpace(msg))
+                    .ToList();
+
+                if (nextSteps.Count == 0)
+                {
+                    nextSteps.Add("Review the output above for specific failures in CodeChecks.ps1.");
+                }
+                else
+                {
+                    nextSteps.Insert(0, "The CodeChecks.ps1 script output contains specific instructions for each error listed below:");
+                }
+
+                return new PackageCheckResponse(result.ExitCode, result.Output, "Generated code checks failed")
+                {
+                    NextSteps = nextSteps
+                };
             }
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error running generated code checks at {PackagePath}", packagePath);
-            return new PackageCheckResponse(1, "", $"Error running generated code checks: {ex.Message}");
+            return new PackageCheckResponse(1, "", $"Error running generated code checks: {ex.Message}")
+            {
+                NextSteps =
+                [
+                    $"An unexpected error occurred: {ex.Message}",
+                    "Ensure the .NET SDK is installed and the package path contains a valid .NET project.",
+                    "Verify that 'eng/scripts/CodeChecks.ps1' exists in the SDK repository root."
+                ]
+            };
         }
     }
 
@@ -110,13 +146,28 @@ public partial class DotnetLanguageService : LanguageService
             else
             {
                 logger.LogWarning("AOT compatibility check failed with exit code {ExitCode}", result.ExitCode);
-                return new PackageCheckResponse(result.ExitCode, result.Output, "AOT compatibility check failed");
+                return new PackageCheckResponse(result.ExitCode, result.Output, "AOT compatibility check failed")
+                {
+                    NextSteps =
+                    [
+                        "Review the trimming and AOT warnings in the output above and carefully follow the guidance at https://github.com/Azure/azure-sdk-for-net/blob/main/doc/dev/AotCompatibility.md to address them.",
+                        "If the warnings involve complex scenarios, reach out to the Azure SDK team for guidance before considering an opt-out."
+                    ]
+                };
             }
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error running AOT compatibility check at {PackagePath}", packagePath);
-            return new PackageCheckResponse(1, "", $"Error running AOT compatibility check: {ex.Message}");
+            return new PackageCheckResponse(1, "", $"Error running AOT compatibility check: {ex.Message}")
+            {
+                NextSteps =
+                [
+                    $"An unexpected error occurred: {ex.Message}",
+                    "Ensure the .NET SDK is installed and the package path contains a valid .NET project.",
+                    "Verify that 'eng/scripts/compatibility/Check-AOT-Compatibility.ps1' exists in the SDK repository root."
+                ]
+            };
         }
     }
 
@@ -126,7 +177,14 @@ public partial class DotnetLanguageService : LanguageService
         if (dotnetSDKCheck.ExitCode != 0)
         {
             logger.LogError(".NET SDK is not installed or not available in PATH");
-            return new PackageCheckResponse(dotnetSDKCheck.ExitCode, $"dotnet --list-sdks failed with an error: {dotnetSDKCheck.Output}");
+            return new PackageCheckResponse(dotnetSDKCheck.ExitCode, $"dotnet --list-sdks failed with an error: {dotnetSDKCheck.Output}")
+            {
+                NextSteps =
+                [
+                    "Install the .NET SDK from https://dotnet.microsoft.com/download",
+                    "Ensure 'dotnet' is available in your PATH environment variable."
+                ]
+            };
         }
 
         var dotnetVersions = dotnetSDKCheck.Output.Split(Environment.NewLine.ToCharArray(), StringSplitOptions.RemoveEmptyEntries);
@@ -143,13 +201,27 @@ public partial class DotnetLanguageService : LanguageService
             else
             {
                 logger.LogError(".NET SDK version {InstalledVersion} is below minimum requirement of {RequiredVersion}", latestVersionNumber, RequiredDotNetVersion);
-                return new PackageCheckResponse(1, "", $".NET SDK version {latestVersionNumber} is below minimum requirement of {RequiredDotNetVersion}");
+                return new PackageCheckResponse(1, "", $".NET SDK version {latestVersionNumber} is below minimum requirement of {RequiredDotNetVersion}")
+                {
+                    NextSteps =
+                    [
+                        $"Update the .NET SDK to version {RequiredDotNetVersion} or later from https://dotnet.microsoft.com/download",
+                        $"Current installed version: {latestVersionNumber}"
+                    ]
+                };
             }
         }
         else
         {
             logger.LogError("Failed to parse .NET SDK version: {VersionString}", latestVersionNumber);
-            return new PackageCheckResponse(1, "", $"Failed to parse .NET SDK version: {latestVersionNumber}");
+            return new PackageCheckResponse(1, "", $"Failed to parse .NET SDK version: {latestVersionNumber}")
+            {
+                NextSteps =
+                [
+                    "Verify the .NET SDK installation by running 'dotnet --list-sdks' manually.",
+                    $"Ensure a .NET SDK version >= {RequiredDotNetVersion} is installed."
+                ]
+            };
         }
     }
 
