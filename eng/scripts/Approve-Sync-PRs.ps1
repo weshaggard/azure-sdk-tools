@@ -195,13 +195,13 @@ function Approve-SyncPipelineStage([int]$BuildId, [string]$StageIdentifier, [scr
     return $false
   }
 
-  $approvalBody = @(
+  $approvalBody = ConvertTo-Json -InputObject @(
     @{
       approvalId = $approval.id
       comment    = "Approved by Approve-Sync-PRs.ps1 for Tools PR $ToolsPRNumber"
       status     = "approved"
     }
-  ) | ConvertTo-Json
+  )
 
   $approveUrl = "$devOpsBaseUrl/_apis/pipelines/approvals?api-version=7.1"
   Invoke-RestMethod $approveUrl -Method Patch -Headers $headers -ContentType "application/json" -Body $approvalBody | Out-Null
@@ -244,21 +244,6 @@ function Enable-ToolsPRAutoMerge() {
 
   Write-Host "Enabled auto-merge for tools PR '$($toolsPR.url)'."
   return $true
-}
-
-function Wait-ForSyncPRArtifactContent([int]$BuildId, [int]$TimeoutSeconds = 300, [int]$PollIntervalSeconds = 15) {
-  $deadline = (Get-Date).ToUniversalTime().AddSeconds($TimeoutSeconds)
-  do {
-    try {
-      return Get-SyncPRArtifactContent -BuildId $BuildId
-    } catch {
-      if ((Get-Date).ToUniversalTime() -ge $deadline) {
-        throw
-      }
-
-      Start-Sleep -Seconds $PollIntervalSeconds
-    }
-  } while ($true)
 }
 
 $checks = gh pr checks $ToolsPRNumber -R $ToolsRepo --json "name,link" | ConvertFrom-Json
@@ -305,11 +290,9 @@ foreach ($check in $syncChecks) {
       }
       elseif ($createSyncPRsStage.state -eq "pending") {
         if (Approve-SyncPipelineStage -BuildId $buildId -StageIdentifier "CreateSyncPRs" -BuildApprovalContext $buildApprovalContext) {
-          $PrsCreatedContent = Wait-ForSyncPRArtifactContent -BuildId $buildId
+          Write-Host "CreateSyncPRs stage approved for build '$buildId'. Run again later to get the current status."
         }
-        else {
-          continue
-        }
+        continue
       }
       else {
         Write-Host "CreateSyncPRs for build '$buildId' has not completed successfully yet. Current state: '$($createSyncPRsStage.state)'; result: '$($createSyncPRsStage.result)'. Skipping PR artifact download."
@@ -330,9 +313,17 @@ foreach ($check in $syncChecks) {
   }
 }
 
-function getPRState($pr) {
+function getPRState($pr, [int]$MaxRetries = 3, [int]$RetryDelaySeconds = 5) {
   $prFields = "number,url,state,headRefOid,mergeable,mergeStateStatus,reviews"
-  return gh pr view $pr.Number -R $pr.Repo --json $prFields | ConvertFrom-Json
+  for ($i = 0; $i -lt $MaxRetries; $i++) {
+    $result = gh pr view $pr.Number -R $pr.Repo --json $prFields | ConvertFrom-Json
+    if ($result.mergeStateStatus -ne "UNKNOWN") {
+      return $result
+    }
+    Write-Host "PR merge state is UNKNOWN, retrying in $RetryDelaySeconds seconds... ($($i + 1)/$MaxRetries)"
+    Start-Sleep -Seconds $RetryDelaySeconds
+  }
+  return $result
 }
 
 foreach ($pr in $prList) {
