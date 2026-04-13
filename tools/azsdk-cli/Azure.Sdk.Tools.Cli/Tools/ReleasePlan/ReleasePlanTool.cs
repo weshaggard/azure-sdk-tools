@@ -891,31 +891,43 @@ namespace Azure.Sdk.Tools.Cli.Tools.ReleasePlan
         }
 
         [McpServerTool(Name = UpdateSdkDetailsToolName), Description("Update the SDK details in the release plan work item. This tool is called to update SDK language and package name in the release plan work item." +
-            " sdkDetails parameter is a JSON of list of SDKInfo and each SDKInfo contains Language and PackageName as properties.")]
-        public async Task<DefaultCommandResponse> UpdateSDKDetailsInReleasePlan(int releasePlanWorkItemId, string sdkDetails, CancellationToken ct)
+            " Provide path to typespec project.")]
+        public async Task<DefaultCommandResponse> UpdateSDKDetailsInReleasePlan(int releasePlanWorkItemId, string typeSpecProjectPath, CancellationToken ct)
         {
             try
             {
                 if (releasePlanWorkItemId <= 0)
                 {
-                    return "Invalid release plan ID.";
+                    return new DefaultCommandResponse { ResponseError = "Invalid release plan ID." };
                 }
-
-                if (string.IsNullOrEmpty(sdkDetails))
+                
+                if (!typeSpecHelper.IsValidTypeSpecProjectPath(typeSpecProjectPath))
                 {
-                    return "No SDK information provided to update the release plan.";
+                    return new DefaultCommandResponse { ResponseError = $"TypeSpec project path '{typeSpecProjectPath}' is invalid. Provide a TypeSpec project path that contains tspconfig.yaml" };
                 }
                 logger.LogInformation("Updating SDK details in release plan work item ID: {ReleasePlanWorkItemId}", releasePlanWorkItemId);
-                logger.LogDebug("SDK details to update: {SdkDetails}", sdkDetails);
-                // Fix for CS8600: Ensure sdkDetails is not null before deserialization
-                var options = new JsonSerializerOptions
+
+                // Parse TypeSpec project to resolve package names
+                var typeSpecProject = await typeSpecHelper.ParseTypeSpecProjectAsync(typeSpecProjectPath, npxHelper, logger, ct);
+                var resolvedPackages = typeSpecProject?.Packages;
+                if (resolvedPackages == null)
                 {
-                    PropertyNameCaseInsensitive = true
-                };
-                List<SDKInfo>? SdkInfos = JsonSerializer.Deserialize<List<SDKInfo>>(sdkDetails, options);
-                if (SdkInfos == null)
+                    return new DefaultCommandResponse { ResponseError = $"Failed to parse TypeSpec project at {typeSpecProjectPath}." };
+                }
+
+                // Convert resolved packages to SDKInfo list
+                List<SDKInfo> SdkInfos = resolvedPackages
+                    .Where(p => p.Language != SdkLanguage.Unknown && !string.IsNullOrEmpty(p.PackageName))
+                    .Select(p => new SDKInfo
+                    {
+                        Language = p.Language.ToWorkItemString(),
+                        PackageName = p.PackageName!
+                    })
+                    .ToList();
+
+                if (SdkInfos.Count == 0)
                 {
-                    return "Failed to deserialize SDK details.";
+                    return new DefaultCommandResponse { ResponseError = "No valid SDK packages found in the TypeSpec project metadata." };
                 }
 
                 // Get release plan

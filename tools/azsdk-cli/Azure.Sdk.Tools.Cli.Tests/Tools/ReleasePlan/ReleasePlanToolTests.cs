@@ -8,6 +8,7 @@ using Azure.Sdk.Tools.Cli.Tools.ReleasePlan;
 using System.Text.Json;
 using Azure.Sdk.Tools.Cli.Models;
 using Azure.Sdk.Tools.Cli.Models.AzureDevOps;
+using Microsoft.Extensions.Logging;
 
 namespace Azure.Sdk.Tools.Cli.Tests.Tools.ReleasePlan
 {
@@ -314,20 +315,33 @@ namespace Azure.Sdk.Tools.Cli.Tests.Tools.ReleasePlan
         [Test]
         public async Task Test_Update_SDK_Details_In_Release_Plan()
         {
-            string sdkDetails = "[{\"language\":\".NET\",\"packageName\":\"Azure.ResourceManager.Contoso\"},{\"language\":\"Python\",\"packageName\":\"azure-mgmt-contoso\"},{\"language\":\"Java\",\"packageName\":\"com.azure.resourcemanager.contoso\"},{\"language\":\"JavaScript\",\"packageName\":\"@azure/arm-contoso\"},{\"language\":\"Go\",\"packageName\":\"sdk/resourcemanager/contoso/armcontoso\"}]";
-            var updateStatus = await releasePlanTool.UpdateSDKDetailsInReleasePlan(100, sdkDetails, CancellationToken.None);
-            Assert.That(updateStatus.Message, Does.Contain("Updated SDK details in release plan"));
-
-            sdkDetails = "[{\"Language\":\".NET\",\"PackageName\":\"Azure.ResourceManager.Contoso\"},{\"language\":\"Python\",\"packageName\":\"azure-mgmt-contoso\"},{\"language\":\"Java\",\"packageName\":\"azure-resourcemanager-contoso\"},{\"language\":\"JavaScript\",\"packageName\":\"@azure/arm-contoso\"},{\"language\":\"Go\",\"packageName\":\"sdk/resourcemanager/contoso/armcontoso\"}]";
-            updateStatus = await releasePlanTool.UpdateSDKDetailsInReleasePlan(100, sdkDetails, CancellationToken.None);
+            var testCodeFilePath = "TypeSpecTestData/specification/testcontoso/Contoso.Management";
+            var project = TypeSpecProject.ParseTypeSpecConfig(testCodeFilePath);
+            project.Packages = new List<PackageInfo>
+            {
+                new() { PackageName = "Azure.ResourceManager.Contoso", Language = SdkLanguage.DotNet },
+                new() { PackageName = "azure-mgmt-contoso", Language = SdkLanguage.Python },
+                new() { PackageName = "com.azure.resourcemanager.contoso", Language = SdkLanguage.Java },
+                new() { PackageName = "@azure/arm-contoso", Language = SdkLanguage.JavaScript },
+                new() { PackageName = "sdk/resourcemanager/contoso/armcontoso", Language = SdkLanguage.Go }
+            };
+            var tool = CreateReleasePlanToolWithMockedTypeSpec(testCodeFilePath, project);
+            var updateStatus = await tool.UpdateSDKDetailsInReleasePlan(100, testCodeFilePath, CancellationToken.None);
             Assert.That(updateStatus.Message, Does.Contain("Updated SDK details in release plan"));
         }
 
         [Test]
         public async Task Test_Update_SDK_Details_Mgmt_language_excl()
         {
-            string sdkDetails = "[{\"language\":\".NET\",\"packageName\":\"Azure.ResourceManager.Contoso\"},{\"language\":\"JavaScript\",\"packageName\":\"@azure/arm-contoso\"}]";
-            var updateStatus = await releasePlanTool.UpdateSDKDetailsInReleasePlan(100, sdkDetails, CancellationToken.None);
+            var testCodeFilePath = "TypeSpecTestData/specification/testcontoso/Contoso.Management";
+            var project = TypeSpecProject.ParseTypeSpecConfig(testCodeFilePath);
+            project.Packages = new List<PackageInfo>
+            {
+                new() { PackageName = "Azure.ResourceManager.Contoso", Language = SdkLanguage.DotNet },
+                new() { PackageName = "@azure/arm-contoso", Language = SdkLanguage.JavaScript }
+            };
+            var tool = CreateReleasePlanToolWithMockedTypeSpec(testCodeFilePath, project);
+            var updateStatus = await tool.UpdateSDKDetailsInReleasePlan(100, testCodeFilePath, CancellationToken.None);
             Assert.That(updateStatus.Message, Does.Contain("Updated SDK details in release plan"));
             Assert.That(updateStatus.Message, Does.Contain("Important: The following languages were excluded in the release plan. SDK must be released for all languages."));
             Assert.True(updateStatus.NextSteps?.Contains("Prompt the user for justification for excluded languages and update it in the release plan.") ?? false);
@@ -336,8 +350,15 @@ namespace Azure.Sdk.Tools.Cli.Tests.Tools.ReleasePlan
         [Test]
         public async Task Test_Update_SDK_Details_Data_language_excl()
         {
-            string sdkDetails = "[{\"language\":\".NET\",\"packageName\":\"Azure.Contoso\"},{\"language\":\"JavaScript\",\"packageName\":\"@azure/contoso\"}]";
-            var updateStatus = await releasePlanTool.UpdateSDKDetailsInReleasePlan(1001, sdkDetails, CancellationToken.None);
+            var testCodeFilePath = "TypeSpecTestData/specification/testcontoso/Contoso.Management";
+            var project = TypeSpecProject.ParseTypeSpecConfig(testCodeFilePath);
+            project.Packages = new List<PackageInfo>
+            {
+                new() { PackageName = "Azure.Contoso", Language = SdkLanguage.DotNet },
+                new() { PackageName = "@azure/contoso", Language = SdkLanguage.JavaScript }
+            };
+            var tool = CreateReleasePlanToolWithMockedTypeSpec(testCodeFilePath, project);
+            var updateStatus = await tool.UpdateSDKDetailsInReleasePlan(1001, testCodeFilePath, CancellationToken.None);
             Assert.That(updateStatus.Message, Does.Contain("Updated SDK details in release plan"));
             Assert.That(updateStatus.Message, Does.Contain("Important: The following languages were excluded in the release plan. SDK must be released for all languages."));
             Assert.That(updateStatus.NextSteps?.Contains("Prompt the user for justification for excluded languages and update it in the release plan.") ?? false);
@@ -348,21 +369,56 @@ namespace Azure.Sdk.Tools.Cli.Tests.Tools.ReleasePlan
         [Test]
         public async Task Test_Update_SDK_Details_single_invalid_package_name(string language, string package)
         {
-            string sdkDetails = $"[{{\"language\":\"{language}\",\"packageName\":\"{package}\"}}]";
-            var updateStatus = await releasePlanTool.UpdateSDKDetailsInReleasePlan(100, sdkDetails, CancellationToken.None);
+            var testCodeFilePath = "TypeSpecTestData/specification/testcontoso/Contoso.Management";
+            var project = TypeSpecProject.ParseTypeSpecConfig(testCodeFilePath);
+            var sdkLanguage = SdkLanguageHelpers.GetSdkLanguage(language);
+            project.Packages = new List<PackageInfo>
+            {
+                new() { PackageName = package, Language = sdkLanguage }
+            };
+            var tool = CreateReleasePlanToolWithMockedTypeSpec(testCodeFilePath, project);
+            var updateStatus = await tool.UpdateSDKDetailsInReleasePlan(100, testCodeFilePath, CancellationToken.None);
             Assert.That(updateStatus.ResponseError, Does.Contain("Unsupported package name"));
-            Assert.That(updateStatus.ResponseError, Does.Contain($"{language} -> {package}"));
         }
 
         [Test]
         public async Task Test_Update_SDK_Details_multiple_invalid_package_names()
         {
-            string sdkDetails = "[{\"language\":\"JavaScript\",\"packageName\":\"@invalid/package\"}," +
-                        "{\"language\":\"Go\",\"packageName\":\"invalid/package\"}]";
-            var updateStatus = await releasePlanTool.UpdateSDKDetailsInReleasePlan(100, sdkDetails, CancellationToken.None);
+            var testCodeFilePath = "TypeSpecTestData/specification/testcontoso/Contoso.Management";
+            var project = TypeSpecProject.ParseTypeSpecConfig(testCodeFilePath);
+            project.Packages = new List<PackageInfo>
+            {
+                new() { PackageName = "@invalid/package", Language = SdkLanguage.JavaScript },
+                new() { PackageName = "invalid/package", Language = SdkLanguage.Go }
+            };
+            var tool = CreateReleasePlanToolWithMockedTypeSpec(testCodeFilePath, project);
+            var updateStatus = await tool.UpdateSDKDetailsInReleasePlan(100, testCodeFilePath, CancellationToken.None);
             Assert.That(updateStatus.ResponseError, Does.Contain("Unsupported package name"));
             Assert.That(updateStatus.ResponseError, Does.Contain("JavaScript -> @invalid/package"));
             Assert.That(updateStatus.ResponseError, Does.Contain("Go -> invalid/package"));
+        }
+
+        [Test]
+        public async Task Test_Update_SDK_Details_invalid_typespec_path()
+        {
+            var mockTypeSpecHelper = new Mock<ITypeSpecHelper>();
+            mockTypeSpecHelper.Setup(x => x.IsValidTypeSpecProjectPath(It.IsAny<string>())).Returns(false);
+            var tool = new ReleasePlanTool(devOpsService, gitHelper, mockTypeSpecHelper.Object, logger, userHelper, gitHubService, environmentHelper, inputSanitizer, httpClient, Mock.Of<INpxHelper>());
+            var updateStatus = await tool.UpdateSDKDetailsInReleasePlan(100, "/nonexistent/path", CancellationToken.None);
+            Assert.That(updateStatus.ResponseError, Does.Contain("invalid"));
+        }
+
+        [Test]
+        public async Task Test_Update_SDK_Details_parse_failure()
+        {
+            var testCodeFilePath = "TypeSpecTestData/specification/testcontoso/Contoso.Management";
+            var mockTypeSpecHelper = new Mock<ITypeSpecHelper>();
+            mockTypeSpecHelper.Setup(x => x.IsValidTypeSpecProjectPath(It.IsAny<string>())).Returns(true);
+            mockTypeSpecHelper.Setup(x => x.ParseTypeSpecProjectAsync(It.IsAny<string>(), It.IsAny<INpxHelper>(), It.IsAny<ILogger>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((TypeSpecProject?)null);
+            var tool = new ReleasePlanTool(devOpsService, gitHelper, mockTypeSpecHelper.Object, logger, userHelper, gitHubService, environmentHelper, inputSanitizer, httpClient, Mock.Of<INpxHelper>());
+            var updateStatus = await tool.UpdateSDKDetailsInReleasePlan(100, testCodeFilePath, CancellationToken.None);
+            Assert.That(updateStatus.ResponseError, Does.Contain("Failed to parse TypeSpec project"));
         }
         
         [Test]
@@ -1071,6 +1127,15 @@ namespace Azure.Sdk.Tools.Cli.Tests.Tools.ReleasePlan
             Assert.IsNull(result.ResponseError, $"Unexpected error: {result.ResponseError}");
             Assert.That(result.Message, Does.Contain("Successfully updated release plan"));
             mockDevOps.Verify(x => x.UpdateReleasePlanSDKDetailsAsync(It.IsAny<int>(), It.IsAny<List<SDKInfo>>(), It.IsAny<CancellationToken>()), Times.Never);
+        }
+
+        private ReleasePlanTool CreateReleasePlanToolWithMockedTypeSpec(string typeSpecPath, TypeSpecProject typeSpecProject)
+        {
+            var mockTypeSpecHelper = new Mock<ITypeSpecHelper>();
+            mockTypeSpecHelper.Setup(x => x.IsValidTypeSpecProjectPath(typeSpecPath)).Returns(true);
+            mockTypeSpecHelper.Setup(x => x.ParseTypeSpecProjectAsync(typeSpecPath, It.IsAny<INpxHelper>(), It.IsAny<ILogger>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(typeSpecProject);
+            return new ReleasePlanTool(devOpsService, gitHelper, mockTypeSpecHelper.Object, logger, userHelper, gitHubService, environmentHelper, inputSanitizer, httpClient, Mock.Of<INpxHelper>());
         }
     }
 }
