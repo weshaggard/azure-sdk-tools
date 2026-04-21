@@ -16,6 +16,10 @@
 
 - Added MCP tool for updating the CODEOWNERS cache
 
+### Other Changes
+
+- Made spec PR optional parameter for both `azsdk_create_release_plan` and `azsdk_get_release_plan`
+
 ## 0.6.8 (2026-04-15)
 
 ### Features Added
