@@ -105,12 +105,10 @@ namespace Azure.Sdk.Tools.Cli.Tests.Tools.ReleasePlan
         [TestCase("python")]
         [TestCase(".net")]
         [TestCase("javascript")]
-        [TestCase("java")]
         [TestCase("go")]
         [TestCase("Python")]
         [TestCase(".NET")]
         [TestCase("JavaScript")]
-        [TestCase("Java")]
         [TestCase("Go")]
         public async Task UpdatePackageReleaseStatus_WithSupportedLanguage_NoReleasePlansFound_ReturnsError(string language)
         {
@@ -125,6 +123,25 @@ namespace Azure.Sdk.Tools.Cli.Tests.Tools.ReleasePlan
             // Assert
             Assert.That(result.Message, Does.Contain("No in-progress release plans found"));
             Assert.That(result.Message, Does.Contain("azure-test-package"));
+            Assert.That(result.ResponseError, Is.Null);
+            Assert.That(result.ReleaseStatus, Is.EqualTo("Released"));
+        }
+
+        [TestCase("java")]
+        [TestCase("Java")]
+        public async Task UpdatePackageReleaseStatus_JavaWithSupportedLanguage_NoReleasePlansFound_ReturnsError(string language)
+        {
+            // Arrange
+            mockDevOpsService
+                .Setup(x => x.GetReleasePlansForPackageAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new List<ReleasePlanWorkItem>());
+
+            // Act - Java requires groupName:packageName format
+            var result = await packageReleaseStatusTool.UpdatePackageReleaseStatus("com.azure:azure-test-package", language, "Released", null, CancellationToken.None);
+
+            // Assert
+            Assert.That(result.Message, Does.Contain("No in-progress release plans found"));
+            Assert.That(result.Message, Does.Contain("com.azure:azure-test-package"));
             Assert.That(result.ResponseError, Is.Null);
             Assert.That(result.ReleaseStatus, Is.EqualTo("Released"));
         }
@@ -281,12 +298,12 @@ namespace Azure.Sdk.Tools.Cli.Tests.Tools.ReleasePlan
                 Times.Once);
         }
 
-        [TestCase("python", "Custom.ReleaseStatusForPython")]
-        [TestCase(".net", "Custom.ReleaseStatusForDotnet")]
-        [TestCase("javascript", "Custom.ReleaseStatusForJavaScript")]
-        [TestCase("java", "Custom.ReleaseStatusForJava")]
-        [TestCase("go", "Custom.ReleaseStatusForGo")]
-        public async Task UpdatePackageReleaseStatus_UsesCorrectFieldNameForLanguage(string language, string expectedFieldName)
+        [TestCase("python", "Custom.ReleaseStatusForPython", "azure-test-package")]
+        [TestCase(".net", "Custom.ReleaseStatusForDotnet", "azure-test-package")]
+        [TestCase("javascript", "Custom.ReleaseStatusForJavaScript", "azure-test-package")]
+        [TestCase("java", "Custom.ReleaseStatusForJava", "com.azure:azure-test-package")]
+        [TestCase("go", "Custom.ReleaseStatusForGo", "azure-test-package")]
+        public async Task UpdatePackageReleaseStatus_UsesCorrectFieldNameForLanguage(string language, string expectedFieldName, string packageName)
         {
             // Arrange
             var releasePlan = new ReleasePlanWorkItem
@@ -298,7 +315,7 @@ namespace Azure.Sdk.Tools.Cli.Tests.Tools.ReleasePlan
                     new SDKInfo
                     {
                         Language = language,
-                        PackageName = "azure-test-package",
+                        PackageName = packageName,
                         PullRequestStatus = "InProgress"
                     }
                 }
@@ -313,7 +330,7 @@ namespace Azure.Sdk.Tools.Cli.Tests.Tools.ReleasePlan
                 .ReturnsAsync(new Microsoft.TeamFoundation.WorkItemTracking.WebApi.Models.WorkItem { Id = 12345 });
 
             // Act
-            var result = await packageReleaseStatusTool.UpdatePackageReleaseStatus("azure-test-package", language, "Released", null, CancellationToken.None);
+            var result = await packageReleaseStatusTool.UpdatePackageReleaseStatus(packageName, language, "Released", null, CancellationToken.None);
 
             // Assert
             Assert.That(result.ResponseError, Is.Null);
@@ -427,14 +444,14 @@ namespace Azure.Sdk.Tools.Cli.Tests.Tools.ReleasePlan
                     new SDKInfo
                     {
                         Language = "java",
-                        PackageName = "com.azure.test",
+                        PackageName = "com.azure:azure-test",
                         PullRequestStatus = "Merged"
                     }
                 }
             };
 
             mockDevOpsService
-                .Setup(x => x.GetReleasePlansForPackageAsync("com.azure.test", "java", It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+                .Setup(x => x.GetReleasePlansForPackageAsync("com.azure:azure-test", "java", It.IsAny<bool>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new List<ReleasePlanWorkItem> { releasePlan });
 
             mockDevOpsService
@@ -442,7 +459,7 @@ namespace Azure.Sdk.Tools.Cli.Tests.Tools.ReleasePlan
                 .ReturnsAsync(new Microsoft.TeamFoundation.WorkItemTracking.WebApi.Models.WorkItem { Id = 12345 });
 
             // Act
-            var result = await packageReleaseStatusTool.UpdatePackageReleaseStatus("com.azure.test", "java", "Released", null, CancellationToken.None);
+            var result = await packageReleaseStatusTool.UpdatePackageReleaseStatus("com.azure:azure-test", "java", "Released", null, CancellationToken.None);
 
             // Assert
             Assert.That(result.ResponseError, Is.Null);
@@ -636,6 +653,23 @@ namespace Azure.Sdk.Tools.Cli.Tests.Tools.ReleasePlan
                     d.ContainsKey("Custom.ReleaseStatusForPython") &&
                     !d.ContainsKey("Custom.ReleasedVersionForPython")), It.IsAny<CancellationToken>()),
                 Times.Once);
+        }
+
+        [Test]
+        public async Task UpdatePackageReleaseStatus_JavaWithoutGroupName_ReturnsError()
+        {
+            // Act - pass only package name without group for Java
+            var result = await packageReleaseStatusTool.UpdatePackageReleaseStatus(
+                "azure-resourcemanager-containerservice", "java", "Released", null, CancellationToken.None);
+
+            // Assert
+            Assert.That(result.ResponseError, Does.Contain("groupName:packageName"));
+            Assert.That(result.ResponseError, Does.Contain("azure-resourcemanager-containerservice"));
+
+            // Verify no DevOps calls were made
+            mockDevOpsService.Verify(
+                x => x.GetReleasePlansForPackageAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()),
+                Times.Never);
         }
     }
 }

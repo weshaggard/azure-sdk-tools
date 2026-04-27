@@ -27,7 +27,7 @@ namespace Azure.Sdk.Tools.Cli.Tools.ReleasePlan
         // Options
         private readonly Option<string> packageNameOpt = new("--package-name", "-p")
         {
-            Description = "SDK package name",
+            Description = "SDK package name. For Java packages, must include group name in format groupName:packageName (e.g., com.azure.resourcemanager:azure-resourcemanager-containerservice)",
             Required = true,
         };
 
@@ -101,6 +101,13 @@ namespace Azure.Sdk.Tools.Cli.Tools.ReleasePlan
                 if (!ReleasePlanTool.SUPPORTED_LANGUAGES.Contains(language.ToLower()))
                 {
                     response.Message = $"Language '{language}' is not supported. Supported languages: {string.Join(", ", ReleasePlanTool.SUPPORTED_LANGUAGES)}";
+                    return response;
+                }
+
+                // Java packages must include group name in format groupName:packageName
+                if (response.Language == SdkLanguage.Java && !packageName.Contains(':'))
+                {
+                    response.ResponseError = $"Java package name must be in the format 'groupName:packageName' Received: '{packageName}'.";
                     return response;
                 }
                 
